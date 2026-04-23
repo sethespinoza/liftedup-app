@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from database import engine
 from models import Base
 from routers import users, workouts, prs, leaderboard
@@ -9,6 +10,15 @@ Base.metadata.create_all(bind=engine)
 # app instance
 # all requests from the server are handled through this object
 app = FastAPI()
+
+# allow the frontend to talk to the backend
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 # register routers w/ a prefix
 app.include_router(users.router, prefix="/users", tags=["users"])
@@ -23,7 +33,6 @@ def home():
     return {"message": "LiftedUp API is running!"}
 
 # dynamic route with path parameter
-
 @app.get("/users/{user_id}")
 def get_user(user_id: int):
     return {
