@@ -1,37 +1,28 @@
 import React, { useState } from 'react';
 import API from '../api';
 
-function Leaderboard() {
+function Rankings() {
     const [exercise, setExercise] = useState('');
-    const [leaderboard, setLeaderboard] = useState([]);
     const [percentile, setPercentile] = useState(null);
     const [error, setError] = useState('');
 
     const handleSearch = async () => {
         if (!exercise) return;
         setError('');
-        setLeaderboard([]);
         setPercentile(null);
 
         try {
-            // get global leaderboard
-            const lbRes = await API.get(`/leaderboard/global/${exercise.toLowerCase()}`);
-            setLeaderboard(lbRes.data.leaderboard);
-        } catch (err) {
-            setError('No lifts found for this exercise yet');
-        }
-
-        try {
-            // get percentile ranking
+            // fetch percentile ranking from backend
             const pRes = await API.get(`/leaderboard/percentile/${exercise.toLowerCase()}`);
             setPercentile(pRes.data);
         } catch (err) {
-            // percentile may not be available for all exercises
+            setError(err.response?.data?.detail || 'No data found for this exercise');
         }
     };
 
     return (
         <div style={styles.container}>
+            {/* header */}
             <div style={styles.header}>
                 <h1 style={styles.logo}>LiftedUp</h1>
                 <div style={styles.nav}>
@@ -45,9 +36,10 @@ function Leaderboard() {
             </div>
 
             <div style={styles.content}>
-                <h2 style={styles.title}>Leaderboard</h2>
+                <h2 style={styles.title}>How Do You Stack Up?</h2>
+                <p style={styles.subtitle}>Compare your lifts against strength standards</p>
 
-                {/* search */}
+                {/* search bar */}
                 <div style={styles.searchRow}>
                     <input
                         style={styles.input}
@@ -61,9 +53,12 @@ function Leaderboard() {
                     </button>
                 </div>
 
+                {/* currently supported exercises */}
+                <p style={styles.supported}>Supported: bench press</p>
+
                 {error && <p style={styles.error}>{error}</p>}
 
-                {/* percentile card */}
+                {/* percentile result card */}
                 {percentile && (
                     <div style={styles.percentileCard}>
                         <p style={styles.percentileLabel}>Your {percentile.exercise} PR</p>
@@ -72,22 +67,19 @@ function Leaderboard() {
                             Stronger than <span style={styles.percentileHighlight}>{percentile.percentile}%</span> of lifters
                         </p>
                         <p style={styles.percentileLevel}>Level: {percentile.level}</p>
-                    </div>
-                )}
 
-                {/* global leaderboard */}
-                {leaderboard.length > 0 && (
-                    <div style={styles.section}>
-                        <h3 style={styles.sectionTitle}>Top Lifters — {exercise}</h3>
-                        {leaderboard.map((entry) => (
-                            <div key={entry.rank} style={styles.row}>
-                                <span style={entry.rank === 1 ? styles.goldRank : styles.rank}>
-                                    #{entry.rank}
-                                </span>
-                                <span style={styles.username}>{entry.username}</span>
-                                <span style={styles.weight}>{entry.weight} lbs</span>
+                        {/* standards breakdown at your bodyweight */}
+                        <div style={styles.standards}>
+                            <p style={styles.standardsTitle}>Standards at your bodyweight</p>
+                            <div style={styles.standardsGrid}>
+                                {Object.entries(percentile.standards).map(([level, weight]) => (
+                                    <div key={level} style={styles.standardItem}>
+                                        <p style={styles.standardLevel}>{level}</p>
+                                        <p style={styles.standardWeight}>{weight} lbs</p>
+                                    </div>
+                                ))}
                             </div>
-                        ))}
+                        </div>
                     </div>
                 )}
             </div>
@@ -130,12 +122,16 @@ const styles = {
     },
     title: {
         color: 'white',
+        marginBottom: '0.5rem',
+    },
+    subtitle: {
+        color: '#888',
         marginBottom: '1.5rem',
     },
     searchRow: {
         display: 'flex',
         gap: '1rem',
-        marginBottom: '1.5rem',
+        marginBottom: '0.5rem',
     },
     input: {
         flex: 1,
@@ -156,6 +152,11 @@ const styles = {
         border: 'none',
         cursor: 'pointer',
     },
+    supported: {
+        color: '#555',
+        fontSize: '0.8rem',
+        marginBottom: '1.5rem',
+    },
     error: {
         color: '#ff4d4d',
     },
@@ -163,7 +164,6 @@ const styles = {
         backgroundColor: '#1a1a1a',
         borderRadius: '12px',
         padding: '1.5rem',
-        marginBottom: '1.5rem',
         border: '1px solid #e8ff47',
         textAlign: 'center',
     },
@@ -174,60 +174,53 @@ const styles = {
     },
     percentileWeight: {
         color: 'white',
-        fontSize: '2rem',
+        fontSize: '2.5rem',
         fontWeight: 'bold',
         margin: '0 0 0.5rem 0',
     },
     percentileRank: {
         color: 'white',
         margin: '0 0 0.25rem 0',
+        fontSize: '1.1rem',
     },
     percentileHighlight: {
         color: '#e8ff47',
         fontWeight: 'bold',
-        fontSize: '1.2rem',
+        fontSize: '1.4rem',
     },
     percentileLevel: {
         color: '#888',
-        margin: 0,
+        margin: '0 0 1.5rem 0',
         textTransform: 'capitalize',
     },
-    section: {
-        marginTop: '1rem',
+    standards: {
+        borderTop: '1px solid #333',
+        paddingTop: '1rem',
     },
-    sectionTitle: {
-        color: '#e8ff47',
-        marginBottom: '1rem',
-        textTransform: 'capitalize',
-    },
-    row: {
-        display: 'flex',
-        alignItems: 'center',
-        gap: '1rem',
-        backgroundColor: '#1a1a1a',
-        borderRadius: '8px',
-        padding: '1rem',
-        marginBottom: '0.5rem',
-        border: '1px solid #333',
-    },
-    rank: {
+    standardsTitle: {
         color: '#888',
-        fontWeight: 'bold',
-        width: '2rem',
+        fontSize: '0.8rem',
+        marginBottom: '0.75rem',
     },
-    goldRank: {
-        color: '#e8ff47',
-        fontWeight: 'bold',
-        width: '2rem',
+    standardsGrid: {
+        display: 'flex',
+        justifyContent: 'space-between',
     },
-    username: {
+    standardItem: {
+        textAlign: 'center',
+    },
+    standardLevel: {
+        color: '#555',
+        fontSize: '0.7rem',
+        margin: '0 0 0.25rem 0',
+        textTransform: 'capitalize',
+    },
+    standardWeight: {
         color: 'white',
-        flex: 1,
-    },
-    weight: {
-        color: '#e8ff47',
+        fontSize: '0.9rem',
         fontWeight: 'bold',
+        margin: 0,
     },
 };
 
-export default Leaderboard;
+export default Rankings;

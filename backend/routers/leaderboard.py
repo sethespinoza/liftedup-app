@@ -3,14 +3,11 @@ from sqlalchemy.orm import Session
 from database import get_db
 from models import PersonalRecord, User
 from auth import verify_token
-from typing import List
-from pydantic import BaseModel
 
 router = APIRouter()
 
 # strength standards by bodyweight & gender
 # format: (max_bodyweight, beginner, novice, intermediate, advanced, elite)
-# data based on established strength standards
 BENCH_STANDARDS_MALE = [
     (110, 53, 84, 125, 173, 226),
     (120, 63, 97, 140, 191, 247),
@@ -58,7 +55,7 @@ BENCH_STANDARDS_FEMALE = [
 
 # map exercise names to their standards tables
 STANDARDS_MAP = {
-    "bench press": (BENCH_STANDARDS_MALE, BENCH_STANDARDS_FEMALE)
+    "bench press": (BENCH_STANDARDS_MALE, BENCH_STANDARDS_FEMALE),
 }
 
 def get_percentile(weight: float, bodyweight: float, gender: str, exercise: str) -> dict:
@@ -66,7 +63,7 @@ def get_percentile(weight: float, bodyweight: float, gender: str, exercise: str)
     exercise_lower = exercise.lower()
     if exercise_lower not in STANDARDS_MAP:
         return None
-    
+
     male_standards, female_standards = STANDARDS_MAP[exercise_lower]
     standards = male_standards if gender.lower() == "male" else female_standards
 
@@ -79,11 +76,11 @@ def get_percentile(weight: float, bodyweight: float, gender: str, exercise: str)
 
     if not row:
         return None
-    
-    # unpack the standards
+
+    # unpack the standards for this bodyweight
     _, beginner, novice, intermediate, advanced, elite = row
 
-    # calculate percentile based on where weight falls
+    # calculate percentile based on where weight falls in the standards
     if weight < beginner:
         percentile = round((weight / beginner) * 10, 1)
         level = "below beginner"
@@ -102,7 +99,7 @@ def get_percentile(weight: float, bodyweight: float, gender: str, exercise: str)
     else:
         percentile = round(min(95 + ((weight - elite) / elite) * 5, 99), 1)
         level = "elite"
-    
+
     return {
         "percentile": percentile,
         "level": level,
@@ -122,33 +119,33 @@ def get_percentile_ranking(
     db: Session = Depends(get_db),
     current_user: User = Depends(verify_token)
 ):
-    # user needs bodyweight & gender set
+    # user needs bodyweight and gender set for accurate comparison
     if not current_user.bodyweight or not current_user.gender:
         raise HTTPException(
             status_code=400,
             detail="Please update your profile with bodyweight and gender first"
         )
-    
+
     # get their PR for this exercise
     pr = db.query(PersonalRecord).filter(
         PersonalRecord.user_id == current_user.id,
         PersonalRecord.exercise == exercise.lower()
     ).first()
-    
+
     if not pr:
         raise HTTPException(
             status_code=404,
-            detail=f"No PR founds for {exercise} - log a workout first"
+            detail=f"No PR found for {exercise} — log a workout first"
         )
-    
+
     ranking = get_percentile(pr.weight, current_user.bodyweight, current_user.gender, exercise)
 
     if not ranking:
         raise HTTPException(
             status_code=400,
-            detail=f"No strength standards available for {exercise}. Supported: bench press"
+            detail=f"No strength standards available for {exercise}."
         )
-    
+
     return {
         "exercise": exercise,
         "your_pr": pr.weight,
@@ -157,35 +154,4 @@ def get_percentile_ranking(
         "percentile": ranking["percentile"],
         "level": ranking["level"],
         "standards": ranking["standards"]
-    }
-
-# global leaderboard for a specific exercise
-@router.get("/global/{exercise}")
-def get_global_leaderboard(
-    exercise: str,
-    db: Session = Depends(get_db),
-    current_user: User = Depends(verify_token)
-):
-    # get top 10 PRs for this exercise across all users
-    top_prs = db.query(PersonalRecord, User).join(User).filter(
-        PersonalRecord.exercise == exercise.lower()
-    ).order_by(PersonalRecord.weight.desc()).limit(10).all()
-
-    if not top_prs:
-        raise HTTPException(
-            status_code=404,
-            detail=f"No lifts logged for {exercise} yet"
-        )
-    
-    return {
-        "exercise": exercise,
-        "leaderboard": [
-            {
-                "rank": i + 1,
-                "username": user.username,
-                "weight": pr.weight,
-                "achieved_at": pr.achieved_at
-            }
-            for i, (pr, user) in enumerate(top_prs)
-        ]
     }

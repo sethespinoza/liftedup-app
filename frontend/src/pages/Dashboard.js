@@ -15,9 +15,10 @@ function Dashboard() {
         try {
             const workoutsRes = await API.get('/workouts/');
             const prsRes = await API.get('/prs/');
-            setWorkouts(workoutsRes.data.slice(-5).reverse()); // last 5 workouts
+            // show last 5 workouts, most recent first
+            setWorkouts(workoutsRes.data.slice(-5).reverse());
             setPrs(prsRes.data);
-            // get username from token
+            // decode username from JWT token
             const token = localStorage.getItem('token');
             const payload = JSON.parse(atob(token.split('.')[1]));
             setUsername(payload.sub);
@@ -27,8 +28,9 @@ function Dashboard() {
     };
 
     const handleLogout = () => {
+        // clear token and redirect to login
         localStorage.removeItem('token');
-        window.location.href = '/login'
+        window.location.href = '/login';
     };
 
     return (
@@ -40,8 +42,9 @@ function Dashboard() {
                     <span style={styles.navLink} onClick={() => window.location.href = '/log'}>
                         Log Workout
                     </span>
-                    <span style={styles.navLink} onClick={() => window.location.href = '/leaderboard'}>
-                        Leaderboard
+                    {/* rankings replaces leaderboard for solo experience */}
+                    <span style={styles.navLink} onClick={() => window.location.href = '/rankings'}>
+                        Rankings
                     </span>
                     <span style={styles.navLink} onClick={handleLogout}>
                         Logout
